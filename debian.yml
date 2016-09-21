@@ -1,0 +1,48 @@
+- name: Basic stuff (Debian)
+  hosts: debian
+  sudo: True
+
+  vars:
+    server_name: localhost
+    
+  vars_files:
+    - secrets/secrets.yml
+  
+  tasks:
+
+    - name: install apt packages
+      sudo: True
+      apt:
+        pkg={{ item }}
+        update_cache=yes
+        cache_valid_time=3600
+      with_items:
+        - byobu
+        - emacs24-nox
+        - htop
+        - ntp
+        - ufw
+      
+    - name: copy motd
+      template: >
+        src="templates/motd.j2"
+        dest=/etc/motd
+        mode=0644
+
+    # ufw --------------------
+    
+    - name: Allow ports
+      sudo: True
+      ufw: rule=allow port={{ item }} proto=tcp
+      with_items:
+        - 22
+      notify: restart ufw
+
+    #- name: Enable firewall
+    #  sudo: True
+    #  ufw: state=enabled policy=allow
+
+  handlers:
+    
+    - name: restart ufw
+      service: name=ufw state=restarted

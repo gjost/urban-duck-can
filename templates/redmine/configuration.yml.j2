@@ -1,0 +1,24 @@
+# Outgoing email settings
+
+production:
+  email_delivery:
+    delivery_method: :smtp
+    smtp_settings:
+      enable_starttls_auto: true
+      openssl_verify_mode: none
+      address: {{ redmine_smtp_address }}
+      port: {{ redmine_smtp_port }}
+      domain: {{ redmine_smtp_domain }}
+      authentication: :login
+      user_name: "{{ redmine_smtp_username }}"
+      password: "{{ redmine_smtp_password }}"
+
+development:
+  delivery_method: :smtp
+  smtp_settings:
+    address: 127.0.0.1
+    port: 25
+    domain: example.net
+    authentication: :login
+    user_name: "redmine@example.net"
+    password: "redmine"

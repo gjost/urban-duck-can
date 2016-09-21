@@ -1,0 +1,130 @@
+Groop Tools Ansible
+==============
+
+Ansible is an open-source automattion and configuration management tool.
+
+For more information on Ansible, refer to one of the following:
+* "Ansible: Up and Running", by Lorin Hochstein (O'Reilly)
+* https://docs.ansible.com/ansible/index.html
+
+
+Inventory (./inventory)
+-----------------------
+
+
+The `ansible/inventory` file lists all the hosts in the production/stage cluster.
+
+The first section lists the hosts along with their IP addresses and ports.  In the next section hosts are grouped according to their function and whether they are 'stage' or 'production'.
+
+In the third section variables are assigned to the groups.  These variables are available within templates through a somewhat complicated syntax.
+
+
+Playbooks (./*.yml)
+-------------------
+
+Ansible has this concept of the "playbook".  Each playbook has some settings variables at the top which define which groups the playbook runs against.  Another section defines variables.  The third section is a list of tasks that run against the host(s) in order.  Tasks perform work on the managed machines; they can access variables, and variables are passed to templates that are associated with each task.
+
+The Ansible world seems to organize playbooks around single functions or apps (e.g. PostgreSQL, Nginx, etc).  Playbooks are broken up into lots of tiny files in a directory. Our playbooks each defines a class of server (e.g. DDR public app servers).  Instead of being broken up into little files the playbooks contain all the tasks for each server.
+
+Playbooks are executed using the following command.  The `-sK` flags force Ansible to ask for the `sudo` password.::
+
+    $ ansible-playbook -sK PLAYBOOK.yml
+
+
+Templates
+---------
+
+The `grptls-ansbl` repository contains templates for any config files on the managed machines that are changed from the defaults.  These are located in the `templates` dir.  Ansible executes the templates at runtime, replacing variables with variables set in the playbooks.
+
+
+Install / Setup
+---------------
+
+Install virtualenvwrapper and create an env.  You may have to reboot before you can run mkvirtualenv:
+
+    $ sudo apt-get install python-dev virtualenvwrapper sshpass libxml2-dev libxslt1-dev zlib1g-dev
+    $ mkvirtualenv devops
+
+After this point, invoke the env before using Ansible:
+    
+    $ workon devops
+
+This repository is private so generate SSH key for your user and upload to GitHub (see https://help.github.com/articles/generating-ssh-keys/)::
+
+    $ ssh-keygen -t rsa -b 4096 -C "USER.NAME@DOMAIN"
+    $ cat ~/.ssh/id_rsa.pub
+    Cut and paste public key into GitHub.
+    $ ssh -T git@github.com
+
+Clone this repository then install Ansible and dependencies:
+
+    $ git clone git@github.com:REPO.git
+    $ cd ansible-colo
+    $ pip install -U -r requirements.txt
+    
+Make local copies of ansible.cfg and secrets.yml.  If you have access to another copy of `ansible-colo` you can copy the secrets themselves from there, or get them from the "Ansible secrets" entry in Passpack.:
+
+    $ cp ansible.cfg.example ansible.cfg
+    $ cp secrets.yml.example secrets.yml
+
+
+Managed Machines User Setup
+---------------------------
+
+Ansible works by SSH-ing in to each managed machine and doing things.  There must be a user on each machine for it to log in as, and with `sudo` privileges so Ansible can do its work.
+
+Set up an "ansible" user on each minion.  Use the same password so that you can type this password when sudo is required for tasks running on multiple machines.  Discussion about security of this: http://serverfault.com/questions/560106/
+
+    [on each machine]
+    $ sudo su
+    # adduser ansible
+    [set password]
+    # visudo
+
+On Ansible master machine, create an SSH key.  This will be copied to each minion:
+
+    $ ssh-keygen -t rsa
+    [Save in e.g. "/host/USERNAME/.ssh/id_rsa"]
+
+Copy SSH keys to each minion:
+
+    $ ssh-copy-id ansible@192.168.0.101
+    $ ssh-copy-id ansible@192.168.0.102
+    $ ssh-copy-id ansible@192.168.0.103
+
+Test:
+
+    $ ssh ansible@192.168.0.101
+    $ ansible HOSTNAME -sK -a "tail /var/log/dmesg"
+
+ref: http://www.erikaheidi.com/blog/configuring-ssh-server-access-for-ansible
+
+On each machine, add sudo privileges to the ansible user.
+
+On each machine, force ansible to log in using SSH key (e.g. no password login).  Append the following to `/etc/ssh/sshd_config` and restart the `ssh` service (or just reboot).  See http://serverfault.com/questions/286159):
+
+    Match User ansible
+        PasswordAuthentication no
+
+
+Sudo
+----
+
+You sudo commands using the -s flag.  Force a sudo password prompt using -K.
+
+
+Recipes
+-------
+
+Ping all servers::
+
+    $ ansible all -m "ping"
+
+Run Debian package updates and upgrades on all the servers.::
+
+    $ ansible all -m command -sK -a "apt-get update"
+    $ ansible all -m command -sK -a "apt-get upgrade -y"
+
+Run a playbook.  The `-sK` flags force Ansible to ask for the `sudo` password.::
+
+    $ ansible-playbook -sK PLAYBOOK.yml

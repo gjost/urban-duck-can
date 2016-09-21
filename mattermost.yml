@@ -1,0 +1,197 @@
+z# INSTALLATION
+#
+# https://docs.mattermost.com/install/prod-debian.html
+# 
+# BEFORE RUNNING PLAYBOOK, log in to VM and install MariaDB and Redmine manually
+# entering passwords as prompted:
+#     sudo apt-get install mariadb-server mariadb-client
+# 
+# Create database and user:
+#     mysql -p -u root
+#     CREATE DATABASE mattermost;
+#     CREATE USER 'mmuser'@'localhost' IDENTIFIED BY 'REDACTED';
+#     GRANT ALL PRIVILEGES ON mattermost.* to mmuser@localhost;
+#     flush privileges;
+#     exit
+# 
+# Create a mattermost user
+#     sudo useradd -r mattermost -U
+# 
+# Download Mattermost binary:
+#     wget https://releases.mattermost.com/3.4.0/mattermost-team-3.4.0-linux-amd64.tar.gz
+#     tar xzf mattermost-team-3.4.0-linux-amd64.tar.gz
+#     sudo mv mattermost /opt/
+# 
+# Chown mattermost dirs
+#     sudo chown -R mattermost:mattermost /opt/mattermost
+#     sudo chmod -R g+w /opt/mattermost
+# 
+# Now run the playbook.
+# 
+
+- name: Mattermost
+  hosts: debian
+  sudo: True
+
+  vars:
+    mm_version: 3.4.0
+    mm_root: /opt/mattermost
+    mm_port: 8065
+    mm_mysql_database: mattermost
+    mm_mysql_host: localhost
+    mm_mysql_port: 3306
+    mm_mysql_username: mmuser
+    www_root: /var/www/html
+    server_name: localhost
+    nginx_conf: /etc/nginx/sites-available/mattermost.conf
+
+  vars_files:
+    - secrets/secrets.yml
+
+  tasks:
+
+    - name: "apt: install"
+      sudo: True
+      apt:
+        pkg={{ item }}
+        update_cache=yes
+        cache_valid_time=3600
+      with_items:
+        - ufw
+        - mariadb-server
+        - mariadb-client
+        - nginx
+
+    # ufw ----------------------
+
+    - name: "Allow ports"
+      sudo: True
+      ufw: rule=allow port={{ item }} proto=tcp
+      with_items:
+        - 22
+        - 80   # static media
+        - 443  # https
+ 
+#    #- name: "Enable firewall"
+#    #  sudo: True
+#    #  ufw: state=enabled policy=allow
+
+    # mariadb ------------------
+
+    # mattermost ---------------
+
+    - name: "mattermost: dir"
+      file: >
+        path={{ mm_root }}
+        state=directory
+        owner=mattermost
+        group=mattermost
+      notify: restart mattermost
+
+    - name: "mattermost: data dir"
+      file: >
+        path={{ mm_root }}/data
+        state=directory
+        owner=mattermost
+        group=mattermost
+      notify: restart mattermost
+    
+    - name: "mattermost: config"
+      template: >
+        src="templates/mattermost/config.json.j2"
+        dest=/opt/mattermost/config/config.json
+        mode=0644
+      notify: restart mattermost
+    
+    - name: "mattermost: service config"
+      template: >
+        src="templates/mattermost/mattermost.service.j2"
+        dest=/etc/systemd/system/mattermost.service
+        owner=root 
+        group=root 
+        mode=0644
+      notify: restart mattermost
+    
+    - name: "mattermost: init.d"
+      template: >
+        src="templates/mattermost/mattermost.j2"
+        dest=/etc/init.d/mattermost
+        owner=root 
+        group=root 
+        mode=0644
+      notify: restart mattermost
+    
+    # letsencrypt ------------
+
+#    # https://certbot.eff.org/#debianjessie-nginx
+#    # Get new certs:
+#    #     sudo certbot certonly --webroot -w {{ www_root }}/letsencrypt/ -d DOMAIN
+#    # Test automatic renewal
+#    #     sudo certbot renew --dry-run
+#    # Start automatic renewal
+#    #     sudo certbot renew --quiet 
+#
+#    - name: "letsencrypt: configs dir"
+#      file: >
+#        path=/etc/letsencrypt/configs
+#        state=directory
+
+    - name: "letsencrypt: tmpfile dir"
+      file: >
+        path={{ www_root }}/letsencrypt/.well-known/acme-challenge
+        state=directory
+        owner=www-data
+      notify: restart nginx
+
+#    - name: "letsencrypt: configs"
+#      template: >
+#        src="templates/proxy/letsencrypt.conf.j2"
+#        dest=/etc/letsencrypt/configs/ORGANIZATION.conf
+#        mode=0644
+
+    # nginx --------------------
+
+    #- name: "nginx: passwd dir"
+    #  file: >
+    #    path=/etc/nginx/passwd
+    #    state=directory
+    #  notify: restart nginx
+
+    #- name: "nginx: copy passwd"
+    #  template: >
+    #    src="secrets/mattermost-nginx-passwd"
+    #    dest=/etc/nginx/passwd/mattermost
+    #    owner=root
+    #    group=www-data
+    #    mode=0640
+    #  notify: restart nginx
+
+    - name: "nginx: copy config file"
+      template: >
+        src=templates/mattermost/nginx.conf.j2
+        dest={{ nginx_conf }}
+      notify: restart nginx
+
+    - name: "nginx: link config file"
+      file: >
+        dest=/etc/nginx/sites-enabled/mattermost.conf
+        src={{ nginx_conf }}
+        state=link
+      notify: restart nginx
+
+    - name: "nginx: remove default config file"
+      file: >
+        path=/etc/nginx/sites-enabled/default
+        state=absent
+      notify: restart nginx
+
+  handlers:
+
+    - name: restart mariadb
+      service: name=mariadb state=restarted
+
+    - name: restart mattermost
+      service: name=mattermost state=restarted
+
+    - name: restart nginx
+      service: name=nginx state=restarted
