@@ -19,6 +19,7 @@
       with_items:
         - byobu
         - emacs24-nox
+        - git
         - htop
         - ntp
         - ufw
