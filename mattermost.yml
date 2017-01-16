@@ -95,6 +95,22 @@ z# INSTALLATION
         owner=mattermost
         group=mattermost
       notify: restart mattermost
+
+    # Redact sender and message content from notifications
+    - name: "mattermost: post_body"
+      template: >
+        src="templates/mattermost/post_body.html.j2"
+        dest=/opt/mattermost/templates/post_body.html
+        mode=0644
+      notify: restart mattermost
+    
+    # Redact sender and message content from notifications
+    - name: "mattermost: post_batched_post"
+      template: >
+        src="templates/mattermost/post_batched_post.html.j2"
+        dest=/opt/mattermost/templates/post_batched_post.html
+        mode=0644
+      notify: restart mattermost
     
     - name: "mattermost: config"
       template: >
