@@ -100,7 +100,7 @@ z# INSTALLATION
     - name: "mattermost: post_body"
       template: >
         src="templates/mattermost/post_body.html.j2"
-        dest=/opt/mattermost/templates/post_body.html
+        dest={{ mm_root }}/templates/post_body.html
         mode=0644
       notify: restart mattermost
     
@@ -108,14 +108,14 @@ z# INSTALLATION
     - name: "mattermost: post_batched_post"
       template: >
         src="templates/mattermost/post_batched_post.html.j2"
-        dest=/opt/mattermost/templates/post_batched_post.html
+        dest={{ mm_root }}/templates/post_batched_post.html
         mode=0644
       notify: restart mattermost
     
     - name: "mattermost: config"
       template: >
         src="templates/mattermost/config.json.j2"
-        dest=/opt/mattermost/config/config.json
+        dest={{ mm_root }}/config/config.json
         mode=0644
       notify: restart mattermost
     
