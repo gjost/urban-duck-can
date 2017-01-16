@@ -18,8 +18,8 @@ z# INSTALLATION
 #     sudo useradd -r mattermost -U
 # 
 # Download Mattermost binary:
-#     wget https://releases.mattermost.com/3.4.0/mattermost-team-3.4.0-linux-amd64.tar.gz
-#     tar xzf mattermost-team-3.4.0-linux-amd64.tar.gz
+#     wget https://releases.mattermost.com/VERSION/mattermost-team-VERSION-linux-amd64.tar.gz
+#     tar xzf mattermost-team-VERSION-linux-amd64.tar.gz
 #     sudo mv mattermost /opt/
 # 
 # Chown mattermost dirs
@@ -34,7 +34,7 @@ z# INSTALLATION
   sudo: True
 
   vars:
-    mm_version: 3.4.0
+    mm_version: 3.6.0
     mm_root: /opt/mattermost
     mm_port: 8065
     mm_mysql_database: mattermost
