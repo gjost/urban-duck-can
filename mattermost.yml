@@ -80,6 +80,12 @@
 
     # mattermost ---------------
 
+    - name: "mattermost: download"
+      get_url:
+        url: https://releases.mattermost.com/{{ mm_version }}/mattermost-team-{{ mm_version }}-linux-amd64.tar.gz
+        dest: /opt/mattermost-team-{{ mm_version }}-linux-amd64.tar.gz
+        mode: 0440
+
     - name: "mattermost: dir"
       file: >
         path={{ mm_root }}
