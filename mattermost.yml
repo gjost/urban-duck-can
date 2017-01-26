@@ -34,7 +34,7 @@
   sudo: True
 
   vars:
-    mm_version: 3.6.0
+    mm_version: 3.6.1
     mm_root: /opt/mattermost
     mm_port: 8065
     mm_mysql_database: mattermost
