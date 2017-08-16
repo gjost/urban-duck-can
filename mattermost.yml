@@ -207,6 +207,13 @@
         state=absent
       notify: restart nginx
 
+    # logrotate ----------------
+
+    - name: logrotate-nginx
+      template: >
+        src=templates/mattermost/logrotate-nginx.j2
+        dest=/etc/logrotate.d/nginx
+
   handlers:
 
     - name: restart mariadb
