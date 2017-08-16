@@ -16,7 +16,7 @@
 #
 
 - name: Redmine
-  hosts: debian
+  hosts: redmine
   sudo: True
 
   vars:
