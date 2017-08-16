@@ -251,6 +251,13 @@
 #        state=absent
 #      notify: restart nginx
 
+    # logrotate ----------------
+
+    - name: logrotate-nginx
+      template: >
+        src=templates/redmine/logrotate-nginx.j2
+        dest=/etc/logrotate.d/nginx-redmine
+
   handlers:
 
     - name: restart mariadb
