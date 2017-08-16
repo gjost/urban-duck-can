@@ -30,7 +30,7 @@
 # 
 
 - name: Mattermost
-  hosts: debian
+  hosts: mattermost
   sudo: True
 
   vars:
