@@ -1,0 +1,39 @@
+/var/log/nginx/{{ redmine_domain }}.log {
+	daily
+	rotate 3
+	notifempty
+	missingok
+	compress
+	delaycompress
+	create 0640 www-data adm
+	sharedscripts
+	prerotate
+		if [ -d /etc/logrotate.d/httpd-prerotate ]; then \
+			run-parts /etc/logrotate.d/httpd-prerotate; \
+		fi \
+	endscript
+	postrotate
+		invoke-rc.d nginx rotate >/dev/null 2>&1
+	endscript
+    shred
+}
+/var/log/nginx/{{ redmine_domain }}.err {
+	daily
+	rotate 3
+	notifempty
+    size 5k
+	missingok
+	compress
+	delaycompress
+	create 0640 www-data adm
+	sharedscripts
+	prerotate
+		if [ -d /etc/logrotate.d/httpd-prerotate ]; then \
+			run-parts /etc/logrotate.d/httpd-prerotate; \
+		fi \
+	endscript
+	postrotate
+		invoke-rc.d nginx rotate >/dev/null 2>&1
+	endscript
+    shred
+}

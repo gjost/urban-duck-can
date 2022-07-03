@@ -1,0 +1,28 @@
+# Ansible inventory
+
+
+# hostname -------------------------------- IP address ------- playbook --
+
+local      ansible_ssh_host=192.168.0.101   ip=192.168.0.101   # debian (jessie)
+remote     ansible_ssh_host=123.124.135.246 ip=123.124.135.246 # debian (jessie)
+
+
+# Groups ---------------------------------------------------------------
+
+[local]
+localmachine
+
+[remote]
+remotemachine
+
+[debian]
+localmachine
+remotemachine
+
+
+# Variables ------------------------------------------------------------
+
+[all:vars]
+
+[debian:vars]
+ntp_server=ntp.debian.org

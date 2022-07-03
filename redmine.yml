@@ -1,0 +1,270 @@
+# INSTALLATION
+#
+# BEFORE RUNNING PLAYBOOK, log in to VM and install MariaDB and Redmine manually
+# entering passwords as prompted
+#     sudo apt-get install mariadb-server mariadb-client
+#     sudo apt-get install redmine-mysql
+# Be ready to answer some questions:
+#     Configure database? [Yes]
+#     Database Type? [Mysql]
+#     Database admin password
+#     Application database password
+#
+# The first time you run the playbook it will fail at the backports step.
+# In the VM run "apt-get update", then run the playbook again.
+# Reboot the VM to test autostart.
+#
+
+- name: Redmine
+  hosts: redmine
+  sudo: True
+
+  vars:
+    redmine_conf_dir: /etc/redmine/default
+    redmine_logs_dir: /var/log/redmine/default
+    mariadb_backups_dir: /var/backups/mariadb
+    unicorn_port: 9000
+    unicorn_workers: 4
+    unicorn_pid: /var/run/unicorn.pid
+    unicorn_stderr: /var/log/redmine/default/unicorn.stderr.log
+    unicorn_stdout: /var/log/redmine/default/unicorn.stdout.log
+    www_root: /var/www/html
+    index_path: /var/www/html/index.html
+    nginx_conf: /etc/nginx/sites-available/proxy.conf
+    server_name: localhost
+
+  vars_files:
+    - secrets/secrets.yml
+
+  tasks:
+
+    - name: "apt: jessie-backports.list"
+      template: >
+        src="templates/jessie-backports.list.j2"
+        dest=/etc/apt/sources.list.d/jessie-backports.list
+        mode=0644
+
+    - name: "apt: install"
+      sudo: True
+      apt:
+        pkg={{ item }}
+        update_cache=yes
+        cache_valid_time=3600
+      with_items:
+        - ufw
+        - mariadb-server
+        - mariadb-client
+        - redmine-mysql
+        - unicorn
+        - nginx
+
+    # NOTE: The first time you run playbook, backports will be added to sources.list.d.
+    #       Run ansible redmine -m command -sK -a "apt-get update"
+    - name: "apt: install backports"
+      sudo: True
+      apt:
+        pkg={{ item }}
+        default_release=jessie-backports
+        update_cache=yes
+        cache_valid_time=3600
+      with_items:
+        - certbot
+
+    # ufw ----------------------
+
+    - name: "Allow ports"
+      sudo: True
+      ufw: rule=allow port={{ item }} proto=tcp
+      with_items:
+        - 22
+        - 80   # static media
+        - 443  # https
+
+#    - name: "Enable firewall"
+#      sudo: True
+#      ufw: state=enabled policy=allow
+
+    # mariadb ------------------
+
+    - name: "mariadb: backups dir"
+      file: >
+        path={{ mariadb_backups_dir }}
+        state=directory
+        owner=backup
+        group=backup
+        mode=0750
+    
+    # TODO mariadb backup script
+    # TODO mariadb backup cron
+
+    # redmine ------------------
+
+    - name: "redmine: config dir"
+      file: >
+        path={{ redmine_conf_dir }}
+        state=directory
+
+    - name: "redmine: logs dir"
+      file: >
+        path={{ redmine_logs_dir }}
+        state=directory
+        owner=www-data
+        group=www-data
+        mode=0750
+
+    - name: "redmine: configuration.yml"
+      template: >
+        src=templates/redmine/configuration.yml.j2
+        dest={{ redmine_conf_dir }}/configuration.yml
+        owner=root
+        group=www-data
+        mode=0640
+      notify: restart redmine
+
+    - name: "redmine: database.yml"
+      template: >
+        src=templates/redmine/database.yml.j2
+        dest={{ redmine_conf_dir }}/database.yml
+        owner=root
+        group=www-data
+        mode=0640
+      notify: restart redmine
+
+    - name: "redmine: /etc/default/unicorn"
+      template: >
+        src=templates/redmine/unicorn.j2
+        dest=/etc/default/unicorn
+        owner=root
+        group=root
+        mode=0644
+      notify: restart redmine
+
+    - name: "redmine: unicorn.conf.rb"
+      template: >
+        src=templates/redmine/unicorn.conf.rb.j2
+        dest={{ redmine_conf_dir }}/unicorn.conf.rb
+        owner=root
+        group=root
+        mode=0644
+      notify: restart redmine
+
+    - name: "redmine: init script"
+      template: >
+        src=templates/redmine/redmine_default.j2
+        dest=/etc/init.d/redmine_default
+        owner=root
+        group=root
+        mode=0755
+      notify: restart redmine
+
+    - name: "redmine: service conf"
+      template: >
+        src=templates/redmine/redmine.service.j2
+        dest=/lib/systemd/system/redmine.service
+        owner=root
+        group=root
+        mode=0644
+      notify: restart redmine
+
+    - name: "redmine: enable service conf"
+      file: >
+        dest=/etc/systemd/system/multi-user.target.wants/redmine.service
+        src=/lib/systemd/system/redmine.service
+        state=link
+      notify: restart nginx
+
+#    # letsencrypt ------------
+#    # https://certbot.eff.org/#debianjessie-nginx
+#    # Get new certs:
+#    #     sudo certbot certonly --webroot -w {{ www_root }}/letsencrypt/ -d DOMAIN
+#    # Test automatic renewal
+#    #     sudo certbot renew --dry-run
+#    # Start automatic renewal
+#    #     sudo certbot renew --quiet 
+
+    - name: "letsencrypt: configs dir"
+      file: >
+        path=/etc/letsencrypt/configs
+        state=directory
+
+    - name: "letsencrypt: configs"
+      template: >
+        src="templates/redmine/letsencrypt.conf.j2"
+        dest=/etc/letsencrypt/configs/redmine.conf
+        mode=0644
+
+    - name: "letsencrypt: tmpfile dir"
+      file: >
+        path={{ www_root }}/letsencrypt/.well-known/acme-challenge
+        state=directory
+        owner=www-data
+
+    # nginx --------------------
+
+    - name: "nginx: index.html"
+      template: >
+        src="templates/nginx-index.html.j2"
+        dest={{ index_path }}
+        mode=0644
+
+    - name: "nginx: 404.html"
+      template: >
+        src="templates/404.html.j2"
+        dest={{ www_root }}/404.html
+        mode=0644
+
+    - name: "nginx: 50x.html"
+      template: >
+        src="templates/50x.html.j2"
+        dest={{ www_root }}/50x.html
+        mode=0644
+
+    #- name: "nginx: passwd dir"
+    #  file: >
+    #    path=/etc/nginx/passwd
+    #    state=directory
+
+    #- name: "nginx: passwd"
+    #  template: >
+    #    src="secrets/redmine-nginx-passwd"
+    #    dest=/etc/nginx/passwd/redmine
+    #    owner=root
+    #    group=www-data
+    #    mode=0640
+
+    - name: "nginx: redmine config"
+      template: >
+        src=templates/redmine/nginx.conf.j2
+        dest={{ nginx_conf }}
+      notify: restart nginx
+
+    - name: "nginx: link redmine config"
+      file: >
+        dest=/etc/nginx/sites-enabled/redmine.conf
+        src={{ nginx_conf }}
+        state=link
+      notify: restart nginx
+
+#    - name: "nginx: unlink default config"
+#      file: >
+#        path=/etc/nginx/sites-enabled/default
+#        state=absent
+#      notify: restart nginx
+
+    # logrotate ----------------
+
+    - name: logrotate-nginx
+      template: >
+        src=templates/redmine/logrotate-nginx.j2
+        dest=/etc/logrotate.d/nginx-redmine
+
+  handlers:
+
+    - name: restart mariadb
+      service: name=mariadb state=restarted
+
+    - name: restart nginx
+      service: name=nginx state=restarted
+
+    - name: restart redmine
+      service: name=redmine state=restarted
